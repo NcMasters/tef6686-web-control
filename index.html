@@ -1119,7 +1119,7 @@
   // AM Only
   document.getElementById('attToggle').onchange = e => { 
     lastInteractions.att = Date.now();
-    sendCmd(e.target.checked ? 'X180' : 'X0'); 
+    sendCmd(e.target.checked ? 't180' : 't0'); 
   };
   document.getElementById('ccToggle').onchange = e => { 
     lastInteractions.cc = Date.now();
