@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TEF6686 Pro Controller</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      --card-bg: rgba(22, 28, 37, 0.7);
+      --border-color: rgba(56, 139, 253, 0.15);
+      --text-color: #f0f6fc;
+      --accent-fm: #00f0ff;
+      --accent-am: #39ff14;
+      --accent-color: var(--accent-fm);
+      --red: #ff0055;
+      --yellow: #ffd700;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1e2640 0%, var(--bg-color) 70%);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header Panel */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+    }
+
+    .brand {
+      font-weight: 800;
+      font-size: 1.2rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: linear-gradient(45deg, #00f0ff, #39ff14);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .connect-btn {
+      background: rgba(56, 139, 253, 0.1);
+      color: var(--text-color);
+      border: 1px solid #388bfd;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .connect-btn.connected {
+      background: rgba(57, 255, 20, 0.1);
+      border-color: var(--accent-am);
+      color: var(--accent-am);
+      box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);
+    }
+
+    /* Main Dashboard Screen */
+    .screen-panel {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      border: 1px solid var(--border-color);
+      padding: 25px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .telemetry-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      color: #8b949e;
+      margin-bottom: 10px;
+    }
+
+    .stereo-badge {
+      color: var(--red);
+      font-weight: 600;
+      border: 1px solid var(--red);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      opacity: 0.3;
+      transition: opacity 0.3s;
+    }
+
+    .stereo-badge.active {
+      opacity: 1;
+      box-shadow: 0 0 8px rgba(255,0,85,0.4);
+    }
+
+    .freq-display {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 4rem;
+      font-weight: bold;
+      color: var(--accent-color);
+      text-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+      margin: 10px 0;
+      display: flex;
+      justify-content: center;
+      align-items: baseline;
+      gap: 5px;
+    }
+
+    .freq-unit {
+      font-size: 1.5rem;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 300;
+      color: #8b949e;
+    }
+
+    /* RDS Area */
+    .rds-panel {
+      margin-top: 15px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    .rds-ps {
+      font-size: 1.6rem;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #fff;
+      margin-bottom: 5px;
+      height: 32px;
+    }
+
+    .rds-rt {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.85rem;
+      color: #58a6ff;
+      white-space: nowrap;
+      display: inline-block;
+      animation: marquee 12s linear infinite;
+    }
+
+    @keyframes marquee {
+      0% { transform: translate3d(100%, 0, 0); }
+      100% { transform: translate3d(-100%, 0, 0); }
+    }
+
+    /* Level Meter */
+    .meter-container {
+      margin-top: 15px;
+      width: 100%;
+    }
+
+    .meter-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-bottom: 5px;
+    }
+
+    .meter-bar-outer {
+      height: 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .meter-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--red) 0%, var(--yellow) 50%, var(--accent-am) 100%);
+      transition: width 0.2s ease;
+    }
+
+    /* Jog-Wheel Dial */
+    .dial-panel {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      border: 1px solid var(--border-color);
+      padding: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    .dial-outer {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #1a2233 40%, #0d1220 100%);
+      border: 8px solid rgba(56, 139, 253, 0.1);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6), inset 0 0 15px rgba(0,0,0,0.8);
+      position: relative;
+      touch-action: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .dial-inner {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: #111827;
+      border: 2px dashed rgba(255,255,255,0.1);
+      box-shadow: inset 0 4px 10px rgba(0,0,0,0.5);
+      position: relative;
+      pointer-events: none;
+    }
+
+    .dial-notch {
+      position: absolute;
+      top: 15px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      box-shadow: 0 0 8px var(--accent-color);
+      transform-origin: center 85px;
+      transition: transform 0.05s ease-out;
+    }
+
+    /* Band Selection Buttons */
+    .bands-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .band-btn {
+      background: rgba(22, 28, 37, 0.6);
+      border: 1px solid var(--border-color);
+      color: #8b949e;
+      padding: 12px 0;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .band-btn.active {
+      border-color: var(--accent-color);
+      color: #fff;
+      background: rgba(0, 240, 255, 0.05);
+      box-shadow: inset 0 0 8px rgba(0, 240, 255, 0.1);
+    }
+
+    /* Slider / Vol Row */
+    .vol-panel {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .vol-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #8b949e;
+      width: 40px;
+    }
+
+    .slider {
+      flex-grow: 1;
+      -webkit-appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.1);
+      outline: none;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      box-shadow: 0 0 10px var(--accent-color);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .slider::-webkit-slider-thumb:active {
+      transform: scale(1.3);
+    }
+
+    /* Presets Panel */
+    .presets-panel {
+      background: var(--card-bg);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      padding: 15px;
+    }
+
+    .presets-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #8b949e;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .presets-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .preset-btn {
+      background: rgba(0,0,0,0.2);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: #c9d1d9;
+      padding: 10px 0;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    .preset-btn:active {
+      background: var(--accent-color);
+      color: #000;
+    }
+
+    /* DSP / Bottom Drawer Trigger */
+    .settings-trigger {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px dashed rgba(255,255,255,0.1);
+      color: #8b949e;
+      padding: 15px;
+      border-radius: 16px;
+      text-align: center;
+      cursor: pointer;
+      font-weight: 600;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Slide-Up Drawer for DSP settings */
+    .drawer {
+      position: fixed;
+      bottom: -100%;
+      left: 0;
+      right: 0;
+      background: #0d131f;
+      border-top: 1px solid rgba(56, 139, 253, 0.3);
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+      border-radius: 30px 30px 0 0;
+      padding: 30px 20px;
+      transition: bottom 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+      z-index: 100;
+      max-width: 440px;
+      margin: 0 auto;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    .drawer.open {
+      bottom: 0;
+    }
+
+    .drawer-header {
+      width: 40px;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+      margin: 0 auto 20px auto;
+      cursor: pointer;
+    }
+
+    .drawer-title {
+      font-weight: 800;
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+      color: var(--accent-color);
+      text-align: center;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .toggle-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    /* Custom Checkbox Toggle Switches */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider-toggle {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255,255,255,0.1);
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider-toggle:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider-toggle {
+      background-color: var(--accent-color);
+    }
+
+    input:checked + .slider-toggle:before {
+      transform: translateX(22px);
+    }
+
+    /* Reset button */
+    .reset-btn {
+      width: 100%;
+      background: var(--red);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 25px;
+      box-shadow: 0 0 12px rgba(255,0,85,0.3);
+    }
+
+    .reset-btn:active {
+      transform: scale(0.98);
+    }
+
+    .backdrop {
+      position: fixed;
+      top: 0; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 90;
+      display: none;
+    }
+
+    .backdrop.open {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Connect header -->
+  <header>
+    <div class="brand">TEF6686 Pro</div>
+    <button class="connect-btn" id="connectBtn">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H4z"/>
+        <path d="M8 11a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 2a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+      </svg>
+      <span id="connectText">Connect</span>
+    </button>
+  </header>
+
+  <!-- Monitor Screen -->
+  <div class="screen-panel">
+    <div class="telemetry-row">
+      <span id="bandName">FM BAND</span>
+      <span class="stereo-badge" id="stereoBadge">STEREO</span>
+    </div>
+    <div class="freq-display" id="freqDisplay">
+      <span>104.90</span><span class="freq-unit" id="unitDisplay">MHz</span>
+    </div>
+    <div class="rds-panel">
+      <div class="rds-ps" id="rdsPs">CLASSIC</div>
+      <div class="rds-rt" id="rdsRt">Waiting for Radio Text...</div>
+    </div>
+    <div class="meter-container">
+      <div class="meter-label">
+        <span>Signal Level</span>
+        <span id="dbDisplay">0.0 dBuV</span>
+      </div>
+      <div class="meter-bar-outer">
+        <div class="meter-bar-fill" id="meterFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rotary Wheel -->
+  <div class="dial-panel">
+    <div class="dial-outer" id="dialOuter">
+      <div class="dial-inner"></div>
+      <div class="dial-notch" id="dialNotch"></div>
+    </div>
+  </div>
+
+  <!-- Quick Band Selectors -->
+  <div class="bands-row">
+    <button class="band-btn active" id="btnBand1" onclick="selectBand(1)">FM</button>
+    <button class="band-btn" id="btnBand2" onclick="selectBand(2)">LW</button>
+    <button class="band-btn" id="btnBand3" onclick="selectBand(3)">MW</button>
+    <button class="band-btn" id="btnBand4" onclick="selectBand(4)">SW</button>
+  </div>
+
+  <!-- Volume Slider -->
+  <div class="vol-panel">
+    <div class="vol-label">VOL</div>
+    <input type="range" class="slider" id="volSlider" min="-60" max="15" value="-10">
+  </div>
+
+  <!-- Presets -->
+  <div class="presets-panel">
+    <div class="presets-title">Quick Presets</div>
+    <div class="presets-grid" id="presetsGrid">
+      <!-- Generated dynamically -->
+    </div>
+  </div>
+
+  <!-- Settings trigger drawer -->
+  <div class="settings-trigger" id="settingsTrigger">
+    <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+      <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.86z"/>
+    </svg>
+    <span>DSP Options & Filters</span>
+  </div>
+</div>
+
+<!-- Slide-Up Drawer -->
+<div class="backdrop" id="backdrop"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header" id="drawerClose"></div>
+  <div class="drawer-title">DSP Advanced Settings</div>
+  
+  <!-- Common settings -->
+  <div class="toggle-row">
+    <span class="toggle-label">Dynamic Highcut</span>
+    <label class="switch">
+      <input type="checkbox" id="hcToggle" checked>
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <span class="toggle-label">Dynamic Lowcut</span>
+    <label class="switch">
+      <input type="checkbox" id="lcToggle" checked>
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <span class="toggle-label">Noise Blanker (NB)</span>
+    <label class="switch">
+      <input type="checkbox" id="nbToggle" checked>
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <!-- FM-Only settings -->
+  <div class="toggle-row" id="fmOnlyIms">
+    <span class="toggle-label">iMS Multipath Suppression</span>
+    <label class="switch">
+      <input type="checkbox" id="imsToggle" checked>
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" id="fmOnlyEq">
+    <span class="toggle-label">Channel Equalizer (EQ)</span>
+    <label class="switch">
+      <input type="checkbox" id="eqToggle" checked>
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" id="fmOnlySm">
+    <span class="toggle-label">FM Softmute</span>
+    <label class="switch">
+      <input type="checkbox" id="fmSmToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <!-- AM-Only settings -->
+  <div class="toggle-row" id="amOnlyAtt">
+    <span class="toggle-label">Antenna Attenuator (ATT)</span>
+    <label class="switch">
+      <input type="checkbox" id="attToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" id="amOnlyCc">
+    <span class="toggle-label">AM Co-Channel Detector</span>
+    <label class="switch">
+      <input type="checkbox" id="ccToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" id="amOnlyAnb">
+    <span class="toggle-label">AM Audio Noise Blanker</span>
+    <label class="switch">
+      <input type="checkbox" id="anbToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" id="amOnlyAsm">
+    <span class="toggle-label">AM Softmute</span>
+    <label class="switch">
+      <input type="checkbox" id="asmToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <button class="reset-btn" id="resetBtn">OPTIMIZED FACTORY RESET</button>
+</div>
+
+<script>
+  // WebBLE settings
+  const SERVICE_UUID = '19b10000-e8f2-537e-4f6c-d104768a1214';
+  const RX_CHAR_UUID = '19b10001-e8f2-537e-4f6c-d104768a1214';
+  const TX_CHAR_UUID = '19b10002-e8f2-537e-4f6c-d104768a1214';
+
+  let bluetoothDevice = null;
+  let rxChar = null;
+  let txChar = null;
+
+  // Preset arrays
+  const presetsFM = [
+    { name: "BBC R4", f: 9350 },
+    { name: "BBC R2", f: 8910 },
+    { name: "Classic", f: 10090 },
+    { name: "Local 1", f: 9800 },
+    { name: "Local 2", f: 10250 },
+    { name: "DX Test", f: 9150 }
+  ];
+
+  const presetsAM = [
+    { name: "BBC 5L", f: 909 },
+    { name: "Caroline", f: 648 },
+    { name: "Absolute", f: 1215 },
+    { name: "R. Gold", f: 1548 },
+    { name: "SW Test", f: 6000 },
+    { name: "SW Dxer", f: 9420 }
+  ];
+
+  // System status
+  let curFreq = 10490;
+  let curMode = 1; // 1:FM, 2:AM
+  let curVol = -10;
+
+  // Setup presets UI
+  function loadPresets() {
+    const list = curMode === 1 ? presetsFM : presetsAM;
+    const grid = document.getElementById('presetsGrid');
+    grid.innerHTML = '';
+    list.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn';
+      btn.innerText = p.name;
+      btn.onclick = () => {
+        if (curMode === 1) {
+          sendCmd(`F${p.f}`);
+        } else {
+          sendCmd(`A${p.f}`);
+        }
+      };
+      grid.appendChild(btn);
+    });
+  }
+
+  // BLE Connect sequence
+  document.getElementById('connectBtn').onclick = async () => {
+    if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+      bluetoothDevice.gatt.disconnect();
+      return;
+    }
+
+    try {
+      document.getElementById('connectText').innerText = "Scanning...";
+      bluetoothDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [SERVICE_UUID] }]
+      });
+
+      bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+      const server = await bluetoothDevice.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+
+      rxChar = await service.getCharacteristic(RX_CHAR_UUID);
+      txChar = await service.getCharacteristic(TX_CHAR_UUID);
+
+      await txChar.startNotifications();
+      txChar.addEventListener('characteristicvaluechanged', onNotificationReceived);
+
+      document.getElementById('connectBtn').classList.add('connected');
+      document.getElementById('connectText').innerText = "Connected";
+      
+      // Haptic tick on connection
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    } catch (err) {
+      console.error(err);
+      document.getElementById('connectText').innerText = "Connect";
+      alert("BLE Connection failed: " + err);
+    }
+  };
+
+  function onDisconnected() {
+    document.getElementById('connectBtn').classList.remove('connected');
+    document.getElementById('connectText').innerText = "Connect";
+    rxChar = null;
+    txChar = null;
+  }
+
+  // Receive telemetry packets from ESP32
+  function onNotificationReceived(event) {
+    const decoder = new TextDecoder('utf-8');
+    const jsonStr = decoder.decode(event.target.value);
+    try {
+      const data = JSON.parse(jsonStr);
+      
+      // Update UI variables
+      curFreq = data.f;
+      curMode = data.m;
+      curVol = data.v;
+
+      // Render Frequency
+      const displayVal = curMode === 1 ? (data.f / 100).toFixed(2) : data.f;
+      document.getElementById('freqDisplay').firstElementChild.innerText = displayVal;
+      document.getElementById('unitDisplay').innerText = curMode === 1 ? 'MHz' : 'kHz';
+      
+      // Render labels
+      let bandText = "FM BAND";
+      let activeBandIdx = 1;
+      if (curMode === 2) {
+        if (data.f <= 300) { bandText = "LW BAND"; activeBandIdx = 2; }
+        else if (data.f <= 2000) { bandText = "MW BAND"; activeBandIdx = 3; }
+        else { bandText = "SW BAND"; activeBandIdx = 4; }
+      }
+      document.getElementById('bandName').innerText = bandText;
+
+      // Highlight correct Band button
+      for (let i = 1; i <= 4; i++) {
+        const btn = document.getElementById(`btnBand${i}`);
+        if (i === activeBandIdx) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      }
+
+      // Dynamic theme color selection
+      const root = document.documentElement;
+      if (curMode === 1) {
+        root.style.setProperty('--accent-color', 'var(--accent-fm)');
+      } else {
+        root.style.setProperty('--accent-color', 'var(--accent-am)');
+      }
+
+      // Vol slider
+      document.getElementById('volSlider').value = curVol;
+
+      // RSSI meter
+      document.getElementById('dbDisplay').innerText = `${data.r.toFixed(1)} dBuV`;
+      const minDb = -10;
+      const maxDb = 65;
+      const pct = Math.max(0, Math.min(100, ((data.r - minDb) / (maxDb - minDb)) * 100));
+      document.getElementById('meterFill').style.width = `${pct}%`;
+
+      // Stereo Lock
+      const stereoBadge = document.getElementById('stereoBadge');
+      if (curMode === 1 && data.s === 1) {
+        stereoBadge.classList.add('active');
+        stereoBadge.innerText = "STEREO";
+      } else {
+        stereoBadge.classList.remove('active');
+        stereoBadge.innerText = "MONO";
+      }
+
+      // RDS text
+      document.getElementById('rdsPs').innerText = data.p;
+      document.getElementById('rdsRt').innerText = data.t;
+
+      // 2-Way Synchronization: set checkboxes without triggering onchange events
+      document.getElementById('hcToggle').checked = (data.hc === 1);
+      document.getElementById('lcToggle').checked = (data.lc === 1);
+      document.getElementById('nbToggle').checked = (data.nb === 1);
+      
+      if (curMode === 1) {
+        // Show FM options, Hide AM options
+        document.getElementById('fmOnlyIms').style.display = 'flex';
+        document.getElementById('fmOnlyEq').style.display = 'flex';
+        document.getElementById('fmOnlySm').style.display = 'flex';
+        document.getElementById('amOnlyAtt').style.display = 'none';
+        document.getElementById('amOnlyCc').style.display = 'none';
+        document.getElementById('amOnlyAnb').style.display = 'none';
+        document.getElementById('amOnlyAsm').style.display = 'none';
+        
+        document.getElementById('imsToggle').checked = (data.ims === 1);
+        document.getElementById('eqToggle').checked = (data.eq === 1);
+        document.getElementById('fmSmToggle').checked = (data.sm === 1);
+      } else {
+        // Hide FM options, Show AM options
+        document.getElementById('fmOnlyIms').style.display = 'none';
+        document.getElementById('fmOnlyEq').style.display = 'none';
+        document.getElementById('fmOnlySm').style.display = 'none';
+        document.getElementById('amOnlyAtt').style.display = 'flex';
+        document.getElementById('amOnlyCc').style.display = 'flex';
+        document.getElementById('amOnlyAnb').style.display = 'flex';
+        document.getElementById('amOnlyAsm').style.display = 'flex';
+        
+        document.getElementById('attToggle').checked = (data.att > 0);
+        document.getElementById('ccToggle').checked = (data.cc === 1);
+        document.getElementById('anbToggle').checked = (data.anb === 1);
+        document.getElementById('asmToggle').checked = (data.asm === 1);
+      }
+
+      // Load presets if band mode changed
+      loadPresets();
+
+    } catch (e) {
+      console.warn("JSON Parse err: ", e);
+    }
+  }
+
+  // Send packet commands via BLE
+  async function sendCmd(str) {
+    if (!rxChar) return;
+    try {
+      const encoder = new TextEncoder('utf-8');
+      await rxChar.writeValueWithoutResponse(encoder.encode(str));
+    } catch (err) {
+      console.error("Write err: ", err);
+    }
+  }
+
+  // Tactile Jog-Wheel Rotation Logic
+  const dial = document.getElementById('dialOuter');
+  const notch = document.getElementById('dialNotch');
+  let isDragging = false;
+  let lastAngle = 0;
+  let accumAngle = 0;
+
+  dial.addEventListener('pointerdown', e => {
+    isDragging = true;
+    dial.setPointerCapture(e.pointerId);
+    const rect = dial.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    lastAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+    accumAngle = 0;
+  });
+
+  dial.addEventListener('pointermove', e => {
+    if (!isDragging) return;
+    const rect = dial.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const angle = Math.atan2(e.clientY - cy, e.clientX - cx);
+    
+    let diff = angle - lastAngle;
+    if (diff > Math.PI) diff -= 2 * Math.PI;
+    if (diff < -Math.PI) diff += 2 * Math.PI;
+    
+    lastAngle = angle;
+    accumAngle += diff;
+
+    // Trigger tick every 12 degrees (0.2 radians)
+    const threshold = 0.2;
+    if (Math.abs(accumAngle) >= threshold) {
+      const steps = Math.trunc(accumAngle / threshold);
+      accumAngle = accumAngle % threshold;
+
+      // Haptic tick feedback
+      if (navigator.vibrate) navigator.vibrate(12);
+
+      // Determine step direction
+      const stepVal = curMode === 1 ? 10 : (curFreq > 2000 ? 5 : 9); // FM: 100k, SW: 5k, MW/LW: 9k
+      if (steps > 0) {
+        sendCmd(curMode === 1 ? `F${curFreq + stepVal}` : `A${curFreq + stepVal}`);
+      } else {
+        sendCmd(curMode === 1 ? `F${curFreq - stepVal}` : `A${curFreq - stepVal}`);
+      }
+
+      // Rotate visual notch
+      const currentRotation = parseFloat(notch.style.transform.replace(/[^0-9\-.]/g, '')) || 0;
+      notch.style.transform = `rotate(${currentRotation + (steps * 12)}deg)`;
+    }
+  });
+
+  dial.addEventListener('pointerup', () => { isDragging = false; });
+  dial.addEventListener('pointercancel', () => { isDragging = false; });
+
+  // Volume slider event
+  document.getElementById('volSlider').addEventListener('input', e => {
+    const val = parseInt(e.target.value);
+    sendCmd(val > curVol ? 'v' : 'b'); 
+    curVol = val;
+  });
+
+  // Switch Band Selector
+  function selectBand(b) {
+    if (b === 1) { // FM
+      sendCmd('F9800');
+    } else if (b === 2) { // LW
+      sendCmd('A198');
+    } else if (b === 3) { // MW
+      sendCmd('A1000');
+    } else if (b === 4) { // SW
+      sendCmd('A6000');
+    }
+  }
+
+  // DSP Slide Drawer Controls
+  const trigger = document.getElementById('settingsTrigger');
+  const drawer = document.getElementById('drawer');
+  const backdrop = document.getElementById('backdrop');
+  const close = document.getElementById('drawerClose');
+
+  trigger.onclick = () => {
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+  };
+
+  close.onclick = backdrop.onclick = () => {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+  };
+
+  // DSP Toggles Absolute Commands mapping (2-Way)
+  document.getElementById('hcToggle').onchange = e => { sendCmd(e.target.checked ? 'H1' : 'H0'); };
+  document.getElementById('lcToggle').onchange = e => { sendCmd(e.target.checked ? 'L1' : 'L0'); };
+  document.getElementById('nbToggle').onchange = e => { sendCmd(e.target.checked ? 'g1' : 'g0'); };
+  
+  // FM Only
+  document.getElementById('imsToggle').onchange = e => { sendCmd(e.target.checked ? 'J1' : 'J0'); };
+  document.getElementById('eqToggle').onchange = e => { sendCmd(e.target.checked ? 'E1' : 'E0'); };
+  document.getElementById('fmSmToggle').onchange = e => { sendCmd(e.target.checked ? 'M1' : 'M0'); };
+  
+  // AM Only
+  document.getElementById('attToggle').onchange = e => { sendCmd(e.target.checked ? 'X180' : 'X0'); }; // 18dB attenuation vs 0dB
+  document.getElementById('ccToggle').onchange = e => { sendCmd(e.target.checked ? 'C1' : 'C0'); };
+  document.getElementById('anbToggle').onchange = e => { sendCmd(e.target.checked ? 'W1' : 'W0'); };
+  document.getElementById('asmToggle').onchange = e => { sendCmd(e.target.checked ? 'Y1' : 'Y0'); };
+
+  // Factory Reset button
+  document.getElementById('resetBtn').onclick = () => {
+    sendCmd('R'); 
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]);
+    alert("Optimized DSP Factory Reset Applied!");
+  };
+
+  // Load presets initially
+  loadPresets();
+</script>
+</body>
+</html>
