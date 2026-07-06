@@ -138,6 +138,11 @@
       justify-content: center;
       align-items: baseline;
       gap: 5px;
+      cursor: pointer;
+    }
+
+    .freq-display:active {
+      transform: scale(0.97);
     }
 
     .freq-unit {
@@ -530,7 +535,7 @@
       <span id="bandName">FM BAND</span>
       <span class="stereo-badge" id="stereoBadge">STEREO</span>
     </div>
-    <div class="freq-display" id="freqDisplay">
+    <div class="freq-display" id="freqDisplay" title="Tap to type frequency directly">
       <span>104.90</span><span class="freq-unit" id="unitDisplay">MHz</span>
     </div>
     <div class="rds-panel">
@@ -592,6 +597,15 @@
 <div class="drawer" id="drawer">
   <div class="drawer-header" id="drawerClose"></div>
   <div class="drawer-title">DSP Advanced Settings</div>
+
+  <!-- Physical key lock option -->
+  <div class="toggle-row" style="background: rgba(255, 0, 85, 0.05); border-radius: 8px; padding: 12px 10px; margin-bottom: 10px; border: 1px solid rgba(255, 0, 85, 0.1);">
+    <span class="toggle-label" style="color: var(--red); font-weight: 800;">Lock Physical Buttons</span>
+    <label class="switch">
+      <input type="checkbox" id="lockToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
   
   <!-- Common settings -->
   <div class="toggle-row">
@@ -760,7 +774,6 @@
       document.getElementById('connectBtn').classList.add('connected');
       document.getElementById('connectText').innerText = "Connected";
       
-      // Haptic tick on connection
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     } catch (err) {
       console.error(err);
@@ -849,6 +862,7 @@
       document.getElementById('hcToggle').checked = (data.hc === 1);
       document.getElementById('lcToggle').checked = (data.lc === 1);
       document.getElementById('nbToggle').checked = (data.nb === 1);
+      document.getElementById('lockToggle').checked = (data.kl === 1);
       
       if (curMode === 1) {
         // Show FM options, Hide AM options
@@ -962,6 +976,25 @@
     curVol = val;
   });
 
+  // Tap-To-Type Tuning Prompt
+  document.getElementById('freqDisplay').onclick = () => {
+    const unit = curMode === 1 ? 'MHz' : 'kHz';
+    const placeholder = curMode === 1 ? (curFreq / 100).toFixed(2) : curFreq;
+    const val = prompt(`Enter tuning frequency directly (${unit}):`, placeholder);
+    if (val !== null) {
+      const f = parseFloat(val);
+      if (!isNaN(f)) {
+        if (curMode === 1) {
+          const khz = Math.round(f * 100);
+          sendCmd(`F${khz}`);
+        } else {
+          const khz = Math.round(f);
+          sendCmd(`A${khz}`);
+        }
+      }
+    }
+  };
+
   // Switch Band Selector
   function selectBand(b) {
     if (b === 1) { // FM
@@ -995,6 +1028,7 @@
   document.getElementById('hcToggle').onchange = e => { sendCmd(e.target.checked ? 'H1' : 'H0'); };
   document.getElementById('lcToggle').onchange = e => { sendCmd(e.target.checked ? 'L1' : 'L0'); };
   document.getElementById('nbToggle').onchange = e => { sendCmd(e.target.checked ? 'g1' : 'g0'); };
+  document.getElementById('lockToggle').onchange = e => { sendCmd(e.target.checked ? 'K1' : 'K0'); };
   
   // FM Only
   document.getElementById('imsToggle').onchange = e => { sendCmd(e.target.checked ? 'J1' : 'J0'); };
@@ -1002,7 +1036,7 @@
   document.getElementById('fmSmToggle').onchange = e => { sendCmd(e.target.checked ? 'M1' : 'M0'); };
   
   // AM Only
-  document.getElementById('attToggle').onchange = e => { sendCmd(e.target.checked ? 'X180' : 'X0'); }; // 18dB attenuation vs 0dB
+  document.getElementById('attToggle').onchange = e => { sendCmd(e.target.checked ? 'X180' : 'X0'); };
   document.getElementById('ccToggle').onchange = e => { sendCmd(e.target.checked ? 'C1' : 'C0'); };
   document.getElementById('anbToggle').onchange = e => { sendCmd(e.target.checked ? 'W1' : 'W0'); };
   document.getElementById('asmToggle').onchange = e => { sendCmd(e.target.checked ? 'Y1' : 'Y0'); };
