@@ -722,6 +722,22 @@
     { name: "SW Dxer", f: 9420 }
   ];
 
+  // Asynchronous telemetry debouncing locks
+  const lastInteractions = {
+    hc: 0,
+    lc: 0,
+    nb: 0,
+    ims: 0,
+    eq: 0,
+    sm: 0,
+    att: 0,
+    cc: 0,
+    anb: 0,
+    asm: 0,
+    kl: 0,
+    vol: 0
+  };
+
   // System status
   let curFreq = 10490;
   let curMode = 1; // 1:FM, 2:AM
@@ -799,7 +815,8 @@
       // Update UI variables
       curFreq = data.f;
       curMode = data.m;
-      curVol = data.v;
+      
+      const now = Date.now();
 
       // Render Frequency
       const displayVal = curMode === 1 ? (data.f / 100).toFixed(2) : data.f;
@@ -834,8 +851,11 @@
         root.style.setProperty('--accent-color', 'var(--accent-am)');
       }
 
-      // Vol slider
-      document.getElementById('volSlider').value = curVol;
+      // Vol slider (debounced)
+      if (now - lastInteractions.vol > 1500) {
+        curVol = data.v;
+        document.getElementById('volSlider').value = curVol;
+      }
 
       // RSSI meter
       document.getElementById('dbDisplay').innerText = `${data.r.toFixed(1)} dBuV`;
@@ -858,11 +878,11 @@
       document.getElementById('rdsPs').innerText = data.p;
       document.getElementById('rdsRt').innerText = data.t;
 
-      // 2-Way Synchronization: set checkboxes without triggering onchange events
-      document.getElementById('hcToggle').checked = (data.hc === 1);
-      document.getElementById('lcToggle').checked = (data.lc === 1);
-      document.getElementById('nbToggle').checked = (data.nb === 1);
-      document.getElementById('lockToggle').checked = (data.kl === 1);
+      // 2-Way Synchronization with Telemetry Lockout to eliminate echoing/flickering
+      if (now - lastInteractions.hc > 1500) document.getElementById('hcToggle').checked = (data.hc === 1);
+      if (now - lastInteractions.lc > 1500) document.getElementById('lcToggle').checked = (data.lc === 1);
+      if (now - lastInteractions.nb > 1500) document.getElementById('nbToggle').checked = (data.nb === 1);
+      if (now - lastInteractions.kl > 1500) document.getElementById('lockToggle').checked = (data.kl === 1);
       
       if (curMode === 1) {
         // Show FM options, Hide AM options
@@ -874,9 +894,9 @@
         document.getElementById('amOnlyAnb').style.display = 'none';
         document.getElementById('amOnlyAsm').style.display = 'none';
         
-        document.getElementById('imsToggle').checked = (data.ims === 1);
-        document.getElementById('eqToggle').checked = (data.eq === 1);
-        document.getElementById('fmSmToggle').checked = (data.sm === 1);
+        if (now - lastInteractions.ims > 1500) document.getElementById('imsToggle').checked = (data.ims === 1);
+        if (now - lastInteractions.eq > 1500)  document.getElementById('eqToggle').checked = (data.eq === 1);
+        if (now - lastInteractions.sm > 1500)  document.getElementById('fmSmToggle').checked = (data.sm === 1);
       } else {
         // Hide FM options, Show AM options
         document.getElementById('fmOnlyIms').style.display = 'none';
@@ -887,10 +907,10 @@
         document.getElementById('amOnlyAnb').style.display = 'flex';
         document.getElementById('amOnlyAsm').style.display = 'flex';
         
-        document.getElementById('attToggle').checked = (data.att > 0);
-        document.getElementById('ccToggle').checked = (data.cc === 1);
-        document.getElementById('anbToggle').checked = (data.anb === 1);
-        document.getElementById('asmToggle').checked = (data.asm === 1);
+        if (now - lastInteractions.att > 1500) document.getElementById('attToggle').checked = (data.att > 0);
+        if (now - lastInteractions.cc > 1500)  document.getElementById('ccToggle').checked = (data.cc === 1);
+        if (now - lastInteractions.anb > 1500) document.getElementById('anbToggle').checked = (data.anb === 1);
+        if (now - lastInteractions.asm > 1500) document.getElementById('asmToggle').checked = (data.asm === 1);
       }
 
       // Load presets if band mode changed
@@ -969,10 +989,11 @@
   dial.addEventListener('pointerup', () => { isDragging = false; });
   dial.addEventListener('pointercancel', () => { isDragging = false; });
 
-  // Volume slider event
+  // Volume slider event (Absolute Volume Setting)
   document.getElementById('volSlider').addEventListener('input', e => {
+    lastInteractions.vol = Date.now();
     const val = parseInt(e.target.value);
-    sendCmd(val > curVol ? 'v' : 'b'); 
+    sendCmd(`V${val}`); // Absolute write
     curVol = val;
   });
 
@@ -1024,22 +1045,55 @@
     backdrop.classList.remove('open');
   };
 
-  // DSP Toggles Absolute Commands mapping (2-Way)
-  document.getElementById('hcToggle').onchange = e => { sendCmd(e.target.checked ? 'H1' : 'H0'); };
-  document.getElementById('lcToggle').onchange = e => { sendCmd(e.target.checked ? 'L1' : 'L0'); };
-  document.getElementById('nbToggle').onchange = e => { sendCmd(e.target.checked ? 'g1' : 'g0'); };
-  document.getElementById('lockToggle').onchange = e => { sendCmd(e.target.checked ? 'K1' : 'K0'); };
+  // DSP Toggles Absolute Commands mapping with Telemetry Lockouts
+  document.getElementById('hcToggle').onchange = e => { 
+    lastInteractions.hc = Date.now();
+    sendCmd(e.target.checked ? 'H1' : 'H0'); 
+  };
+  document.getElementById('lcToggle').onchange = e => { 
+    lastInteractions.lc = Date.now();
+    sendCmd(e.target.checked ? 'L1' : 'L0'); 
+  };
+  document.getElementById('nbToggle').onchange = e => { 
+    lastInteractions.nb = Date.now();
+    sendCmd(e.target.checked ? 'g1' : 'g0'); 
+  };
+  document.getElementById('lockToggle').onchange = e => { 
+    lastInteractions.kl = Date.now();
+    sendCmd(e.target.checked ? 'K1' : 'K0'); 
+  };
   
   // FM Only
-  document.getElementById('imsToggle').onchange = e => { sendCmd(e.target.checked ? 'J1' : 'J0'); };
-  document.getElementById('eqToggle').onchange = e => { sendCmd(e.target.checked ? 'E1' : 'E0'); };
-  document.getElementById('fmSmToggle').onchange = e => { sendCmd(e.target.checked ? 'M1' : 'M0'); };
+  document.getElementById('imsToggle').onchange = e => { 
+    lastInteractions.ims = Date.now();
+    sendCmd(e.target.checked ? 'J1' : 'J0'); 
+  };
+  document.getElementById('eqToggle').onchange = e => { 
+    lastInteractions.eq = Date.now();
+    sendCmd(e.target.checked ? 'E1' : 'E0'); 
+  };
+  document.getElementById('fmSmToggle').onchange = e => { 
+    lastInteractions.sm = Date.now();
+    sendCmd(e.target.checked ? 'M1' : 'M0'); 
+  };
   
   // AM Only
-  document.getElementById('attToggle').onchange = e => { sendCmd(e.target.checked ? 'X180' : 'X0'); };
-  document.getElementById('ccToggle').onchange = e => { sendCmd(e.target.checked ? 'C1' : 'C0'); };
-  document.getElementById('anbToggle').onchange = e => { sendCmd(e.target.checked ? 'W1' : 'W0'); };
-  document.getElementById('asmToggle').onchange = e => { sendCmd(e.target.checked ? 'Y1' : 'Y0'); };
+  document.getElementById('attToggle').onchange = e => { 
+    lastInteractions.att = Date.now();
+    sendCmd(e.target.checked ? 'X180' : 'X0'); 
+  };
+  document.getElementById('ccToggle').onchange = e => { 
+    lastInteractions.cc = Date.now();
+    sendCmd(e.target.checked ? 'C1' : 'C0'); 
+  };
+  document.getElementById('anbToggle').onchange = e => { 
+    lastInteractions.anb = Date.now();
+    sendCmd(e.target.checked ? 'W1' : 'W0'); 
+  };
+  document.getElementById('asmToggle').onchange = e => { 
+    lastInteractions.asm = Date.now();
+    sendCmd(e.target.checked ? 'Y1' : 'Y0'); 
+  };
 
   // Factory Reset button
   document.getElementById('resetBtn').onclick = () => {
