@@ -715,6 +715,14 @@
   let rxChar = null;
   let txChar = null;
 
+  // JSON fragments arrive in chunks of <=20 bytes (Web Bluetooth default MTU = 23).
+  // We accumulate the bytes until we see a closing brace for the JSON object,
+  // then parse the complete string. Without this, JSON.parse on every fragment
+  // fails silently and the UI never updates.
+  let txBuffer = '';
+  const TX_OPEN  = '{'.charCodeAt(0);
+  const TX_CLOSE = '}'.charCodeAt(0);
+
   // Preset arrays
   const presetsFM = [
     { name: "BBC R4", f: 9350 },
@@ -810,8 +818,10 @@
       rxChar = await service.getCharacteristic(RX_CHAR_UUID);
       txChar = await service.getCharacteristic(TX_CHAR_UUID);
 
-      await txChar.startNotifications();
+      // Attach the notification handler BEFORE startNotifications so we don't
+      // miss the first packet in the race between resolving and attaching.
       txChar.addEventListener('characteristicvaluechanged', onNotificationReceived);
+      await txChar.startNotifications();
 
       document.getElementById('connectBtn').classList.add('connected');
       document.getElementById('connectText').innerText = "Connected";
@@ -831,12 +841,34 @@
     txChar = null;
   }
 
-  // Receive telemetry packets from ESP32
+  // Receive telemetry packets from TEF6686 nRF52840 (chunked into 20-byte fragments).
   function onNotificationReceived(event) {
     const decoder = new TextDecoder('utf-8');
-    const jsonStr = decoder.decode(event.target.value);
-    try {
-      const data = JSON.parse(jsonStr);
+    const chunk = decoder.decode(event.target.value, { stream: true });
+
+    // Append to rolling buffer; if a '{...' begins inside the chunk,
+    // discard anything before it (defensive against boot garbage).
+    for (let i = 0; i < chunk.length; i++) {
+      const c = chunk.charCodeAt(i);
+      if (c === TX_OPEN) {
+        txBuffer = '';
+      }
+      if (c !== '\u0000') txBuffer += chunk[i];
+      if (c === TX_CLOSE) {
+        // Process the complete JSON object
+        try {
+          const data = JSON.parse(txBuffer);
+          handleTelemetry(data);
+        } catch (e) {
+          console.warn("JSON Parse err: ", e, "buf:", txBuffer);
+        }
+        txBuffer = '';
+      }
+    }
+  }
+
+  // Process a complete telemetry JSON packet
+  function handleTelemetry(data) {
       
       // Update UI variables
       curFreq = data.f;
@@ -942,10 +974,6 @@
 
       // Load presets if band mode changed
       loadPresets();
-
-    } catch (e) {
-      console.warn("JSON Parse err: ", e);
-    }
   }
 
   // Send packet commands via BLE
