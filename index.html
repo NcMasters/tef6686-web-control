@@ -615,14 +615,7 @@
   <div class="drawer-header" id="drawerClose"></div>
   <div class="drawer-title">DSP Advanced Settings</div>
 
-  <!-- Physical key lock option -->
-  <div class="toggle-row" style="background: rgba(255, 0, 85, 0.05); border-radius: 8px; padding: 12px 10px; margin-bottom: 10px; border: 1px solid rgba(255, 0, 85, 0.1);">
-    <span class="toggle-label" style="color: var(--red); font-weight: 800;">Lock Physical Buttons</span>
-    <label class="switch">
-      <input type="checkbox" id="lockToggle">
-      <span class="slider-toggle"></span>
-    </label>
-  </div>
+
   
   <!-- Common settings -->
   <div class="toggle-row">
@@ -649,6 +642,14 @@
     </label>
   </div>
 
+  <div class="toggle-row">
+    <span class="toggle-label">Forced Narrow Bandwidth</span>
+    <label class="switch">
+      <input type="checkbox" id="bwToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
   <!-- FM-Only settings -->
   <div class="toggle-row" id="fmOnlyIms">
     <span class="toggle-label">iMS Multipath Suppression</span>
@@ -670,6 +671,22 @@
     <span class="toggle-label">FM Softmute</span>
     <label class="switch">
       <input type="checkbox" id="fmSmToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" id="fmOnlyMono">
+    <span class="toggle-label">Force Mono</span>
+    <label class="switch">
+      <input type="checkbox" id="monoToggle">
+      <span class="slider-toggle"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" id="fmOnlyDeemph">
+    <span class="toggle-label">FM De-emphasis 75µs (US)</span>
+    <label class="switch">
+      <input type="checkbox" id="deemphToggle">
       <span class="slider-toggle"></span>
     </label>
   </div>
@@ -761,7 +778,13 @@
     asm: 0,
     kl: 0,
     vol: 0,
-    freq: 0
+    freq: 0,
+    bwa: 0,
+    mo: 0,
+    de: 0,
+    mwt: 0,
+    sme: 0,
+    stc: 0
   };
 
   // System status
@@ -818,18 +841,22 @@
     hcToggle: document.getElementById('hcToggle'),
     lcToggle: document.getElementById('lcToggle'),
     nbToggle: document.getElementById('nbToggle'),
+    bwToggle: document.getElementById('bwToggle'),
     imsToggle: document.getElementById('imsToggle'),
     eqToggle:  document.getElementById('eqToggle'),
     fmSmToggle: document.getElementById('fmSmToggle'),
+    monoToggle: document.getElementById('monoToggle'),
+    deemphToggle: document.getElementById('deemphToggle'),
     attToggle:  document.getElementById('attToggle'),
     ccToggle:   document.getElementById('ccToggle'),
     anbToggle:  document.getElementById('anbToggle'),
     asmToggle:  document.getElementById('asmToggle'),
-    lockToggle: document.getElementById('lockToggle'),
     rows: {
       fmIms: document.getElementById('fmOnlyIms'),
       fmEq:  document.getElementById('fmOnlyEq'),
       fmSm:  document.getElementById('fmOnlySm'),
+      fmMono: document.getElementById('fmOnlyMono'),
+      fmDeemph: document.getElementById('fmOnlyDeemph'),
       amAtt: document.getElementById('amOnlyAtt'),
       amCc:  document.getElementById('amOnlyCc'),
       amAnb: document.getElementById('amOnlyAnb'),
@@ -845,8 +872,8 @@
     meterPct: -1,
     stereoMode: -1, // -1=mono, 0=stereo-off, 1=stereo-on
     band1: false, band2: false, band3: false, band4: false,
-    hc: null, lc: null, nb: null, ims: null, eq: null,
-    sm: null, att: null, cc: null, anb: null, asm: null, kl: null,
+    hc: null, lc: null, nb: null, bwa: null, ims: null, eq: null,
+    sm: null, mo: null, de: null, att: null, cc: null, anb: null, asm: null,
   };
 
   // Batch telemetry data updates using requestAnimationFrame.
@@ -989,6 +1016,8 @@
       $el.rows.fmIms.style.display = fmDisplay;
       $el.rows.fmEq.style.display  = fmDisplay;
       $el.rows.fmSm.style.display  = fmDisplay;
+      $el.rows.fmMono.style.display = fmDisplay;
+      $el.rows.fmDeemph.style.display = fmDisplay;
       $el.rows.amAtt.style.display = amDisplay;
       $el.rows.amCc.style.display  = amDisplay;
       $el.rows.amAnb.style.display = amDisplay;
@@ -1008,12 +1037,14 @@
     updateToggle('hc', $el.hcToggle, data.hc === 1);
     updateToggle('lc', $el.lcToggle, data.lc === 1);
     updateToggle('nb', $el.nbToggle, data.nb === 1);
-    updateToggle('kl', $el.lockToggle, data.kl === 1);
+    updateToggle('bwa', $el.bwToggle, data.bwa === 0);
 
     if (curMode === 1) {
       updateToggle('ims', $el.imsToggle, data.ims === 1);
       updateToggle('eq', $el.eqToggle, data.eq === 1);
       updateToggle('sm', $el.fmSmToggle, data.sm === 1);
+      updateToggle('mo', $el.monoToggle, data.mo === 1);
+      updateToggle('de', $el.deemphToggle, data.de === 750);
     } else {
       updateToggle('att', $el.attToggle, data.att > 0);
       updateToggle('cc', $el.ccToggle, data.cc === 1);
@@ -1335,10 +1366,11 @@
     lastInteractions.nb = Date.now();
     sendCmd(e.target.checked ? 'g1' : 'g0'); 
   };
-  document.getElementById('lockToggle').onchange = e => { 
-    lastInteractions.kl = Date.now();
-    sendCmd(e.target.checked ? 'K1' : 'K0'); 
+  document.getElementById('bwToggle').onchange = e => {
+    lastInteractions.bwa = Date.now();
+    sendCmd(e.target.checked ? 'n' : 'a');
   };
+
   
   // FM Only
   document.getElementById('imsToggle').onchange = e => { 
@@ -1352,6 +1384,14 @@
   document.getElementById('fmSmToggle').onchange = e => { 
     lastInteractions.sm = Date.now();
     sendCmd(e.target.checked ? 'M1' : 'M0'); 
+  };
+  document.getElementById('monoToggle').onchange = e => {
+    lastInteractions.mo = Date.now();
+    sendCmd(e.target.checked ? 'm1' : 'm0');
+  };
+  document.getElementById('deemphToggle').onchange = e => {
+    lastInteractions.de = Date.now();
+    sendCmd(e.target.checked ? 'D750' : 'D500');
   };
   
   // AM Only
