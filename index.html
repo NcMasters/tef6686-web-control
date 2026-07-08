@@ -577,10 +577,10 @@
 
   <!-- Quick Band Selectors -->
   <div class="bands-row">
-    <button class="band-btn active" id="btnBand1" onclick="selectBand(1)">FM</button>
-    <button class="band-btn" id="btnBand2" onclick="selectBand(2)">LW</button>
-    <button class="band-btn" id="btnBand3" onclick="selectBand(3)">MW</button>
-    <button class="band-btn" id="btnBand4" onclick="selectBand(4)">SW</button>
+    <button class="band-btn active" id="btnBand1">FM</button>
+    <button class="band-btn" id="btnBand2">LW</button>
+    <button class="band-btn" id="btnBand3">MW</button>
+    <button class="band-btn" id="btnBand4">SW</button>
   </div>
 
   <!-- Volume Slider (Expanded full width & with dB indicators) -->
@@ -1288,6 +1288,7 @@
 
   // Switch Band Selector
   function selectBand(b) {
+    lastInteractions.freq = Date.now();
     if (b === 1) { // FM
       sendCmd('F9800');
     } else if (b === 2) { // LW
@@ -1298,6 +1299,12 @@
       sendCmd('A6000');
     }
   }
+
+  // Bind band buttons programmatically to prevent scoping issues
+  document.getElementById('btnBand1').addEventListener('click', () => selectBand(1));
+  document.getElementById('btnBand2').addEventListener('click', () => selectBand(2));
+  document.getElementById('btnBand3').addEventListener('click', () => selectBand(3));
+  document.getElementById('btnBand4').addEventListener('click', () => selectBand(4));
 
   // DSP Slide Drawer Controls
   const trigger = document.getElementById('settingsTrigger');
