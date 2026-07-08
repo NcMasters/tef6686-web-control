@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TEF6686 Pro Controller</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -176,6 +178,9 @@
       color: #58a6ff;
       white-space: nowrap;
       display: inline-block;
+    }
+
+    .rds-rt.animate {
       animation: marquee 12s linear infinite;
     }
 
@@ -755,7 +760,8 @@
     anb: 0,
     asm: 0,
     kl: 0,
-    vol: 0
+    vol: 0,
+    freq: 0
   };
 
   // System status
@@ -777,24 +783,276 @@
     }
   }
 
-  // Setup presets UI
+  // ---------------------------------------------------------------------
+  // Performance: cached DOM nodes + dirty-flag render scheduler.
+  //
+  // Telemetry packets arrive at the firmware's bleed rate (~8 Hz max,
+  // faster in RDS bursts). On cheap phone CPUs the per-packet cost of
+  // 15-20 getElementById() calls, unconditional text writes, and the
+  // continuous CSS marquee add up to visible UI lag. We:
+  //   1. Resolve each node ONCE into $el, then read/write through that.
+  //   2. Compare incoming values against the last value we *actually wrote*
+  //      and skip writes when nothing changed.
+  //   3. Coalesce all DOM writes into a single rAF tick so a flurry of
+  //      telemetry packets becomes one paint per frame.
+  // ---------------------------------------------------------------------
+  const $el = {
+    freqVal:    document.getElementById('freqDisplay').firstElementChild,
+    unit:       document.getElementById('unitDisplay'),
+    bandName:   document.getElementById('bandName'),
+    stereo:     document.getElementById('stereoBadge'),
+    dbd:        document.getElementById('dbDisplay'),
+    meterFill:  document.getElementById('meterFill'),
+    rdsPs:      document.getElementById('rdsPs'),
+    rdsRt:      document.getElementById('rdsRt'),
+    volSlider:  document.getElementById('volSlider'),
+    volDb:      document.getElementById('volDbLabel'),
+    connectBtn: document.getElementById('connectBtn'),
+    connectTxt: document.getElementById('connectText'),
+    bandBtns: [
+      document.getElementById('btnBand1'),
+      document.getElementById('btnBand2'),
+      document.getElementById('btnBand3'),
+      document.getElementById('btnBand4'),
+    ],
+    hcToggle: document.getElementById('hcToggle'),
+    lcToggle: document.getElementById('lcToggle'),
+    nbToggle: document.getElementById('nbToggle'),
+    imsToggle: document.getElementById('imsToggle'),
+    eqToggle:  document.getElementById('eqToggle'),
+    fmSmToggle: document.getElementById('fmSmToggle'),
+    attToggle:  document.getElementById('attToggle'),
+    ccToggle:   document.getElementById('ccToggle'),
+    anbToggle:  document.getElementById('anbToggle'),
+    asmToggle:  document.getElementById('asmToggle'),
+    lockToggle: document.getElementById('lockToggle'),
+    rows: {
+      fmIms: document.getElementById('fmOnlyIms'),
+      fmEq:  document.getElementById('fmOnlyEq'),
+      fmSm:  document.getElementById('fmOnlySm'),
+      amAtt: document.getElementById('amOnlyAtt'),
+      amCc:  document.getElementById('amOnlyCc'),
+      amAnb: document.getElementById('amOnlyAnb'),
+      amAsm: document.getElementById('amOnlyAsm'),
+    },
+  };
+
+  // Last value we wrote for each label-able field. Used to skip no-op writes.
+  const $last = {
+    freqText: '', unit: '', band: '', mode: -1,
+    rssi: NaN, vol: NaN,
+    rdsPs: '\u0001', rdsRt: '\u0001',
+    meterPct: -1,
+    stereoMode: -1, // -1=mono, 0=stereo-off, 1=stereo-on
+    band1: false, band2: false, band3: false, band4: false,
+    hc: null, lc: null, nb: null, ims: null, eq: null,
+    sm: null, att: null, cc: null, anb: null, asm: null, kl: null,
+  };
+
+  // Batch telemetry data updates using requestAnimationFrame.
+  let pendingTelemetry = null;
+  let rafScheduled = false;
+
+  // Render the latest telemetry frame and update only dirty DOM elements.
+  function flushDirty() {
+    rafScheduled = false;
+    if (!pendingTelemetry) return;
+    const data = pendingTelemetry;
+    pendingTelemetry = null;
+
+    const now = Date.now();
+
+    // 1. Freq & Mode Lock checking
+    const freqLock = (now - lastInteractions.freq < 1500);
+    if (!freqLock) {
+      if (curFreq !== data.f || curMode !== data.m) {
+        curFreq = data.f;
+        curMode = data.m;
+      }
+    }
+
+    // Render Frequency
+    const displayVal = curMode === 1 ? (curFreq / 100).toFixed(2) : curFreq;
+    if ($last.freqText !== displayVal) {
+      $last.freqText = displayVal;
+      $el.freqVal.textContent = displayVal;
+    }
+
+    // Render Unit
+    const unitText = curMode === 1 ? 'MHz' : 'kHz';
+    if ($last.unit !== unitText) {
+      $last.unit = unitText;
+      $el.unit.textContent = unitText;
+    }
+
+    // Band text & Active Band Index
+    let bandText = "FM BAND";
+    let activeBandIdx = 1;
+    if (curMode === 2) {
+      if (curFreq <= 300) { bandText = "LW BAND"; activeBandIdx = 2; }
+      else if (curFreq <= 2000) { bandText = "MW BAND"; activeBandIdx = 3; }
+      else { bandText = "SW BAND"; activeBandIdx = 4; }
+    }
+
+    if ($last.band !== bandText) {
+      $last.band = bandText;
+      $el.bandName.textContent = bandText;
+      
+      // Update theme accent
+      const root = document.documentElement;
+      if (curMode === 1) {
+        root.style.setProperty('--accent-color', 'var(--accent-fm)');
+      } else {
+        root.style.setProperty('--accent-color', 'var(--accent-am)');
+      }
+    }
+
+    // Highlight Band Buttons
+    for (let i = 1; i <= 4; i++) {
+      const isActive = (i === activeBandIdx);
+      const key = `band${i}`;
+      if ($last[key] !== isActive) {
+        $last[key] = isActive;
+        const btn = $el.bandBtns[i - 1];
+        if (btn) {
+          if (isActive) btn.classList.add('active');
+          else btn.classList.remove('active');
+        }
+      }
+    }
+
+    // Presets load (rebuilt cheap now)
+    loadPresets();
+
+    // 2. Volume
+    if (now - lastInteractions.vol >= 1500) {
+      if ($last.vol !== data.v) {
+        $last.vol = data.v;
+        curVol = data.v;
+        $el.volSlider.value = data.v;
+        $el.volDb.textContent = fmtVol(data.v);
+      }
+    }
+
+    // 3. RSSI & Meter
+    if ($last.rssi !== data.r) {
+      $last.rssi = data.r;
+      $el.dbd.textContent = fmtRssi(data.r);
+      
+      const minDb = -10;
+      const maxDb = 65;
+      const pct = Math.max(0, Math.min(100, ((data.r - minDb) / (maxDb - minDb)) * 100));
+      if ($last.meterPct !== pct) {
+        $last.meterPct = pct;
+        $el.meterFill.style.width = `${pct}%`;
+      }
+    }
+
+    // 4. Stereo Badge
+    const wantStereo = (curMode === 1 && data.s === 1) ? 1 : 0;
+    if ($last.stereoMode !== wantStereo) {
+      $last.stereoMode = wantStereo;
+      if (wantStereo === 1) {
+        $el.stereo.classList.add('active');
+        $el.stereo.textContent = "STEREO";
+      } else {
+        $el.stereo.classList.remove('active');
+        $el.stereo.textContent = "MONO";
+      }
+    }
+
+    // 5. RDS
+    if ($last.rdsPs !== data.p) {
+      $last.rdsPs = data.p;
+      $el.rdsPs.textContent = data.p;
+    }
+    if ($last.rdsRt !== data.t) {
+      $last.rdsRt = data.t;
+      $el.rdsRt.textContent = data.t;
+      
+      // Check for overflow to handle marquee animation
+      const parentWidth = $el.rdsRt.parentElement.clientWidth;
+      const textWidth = $el.rdsRt.scrollWidth;
+      if (textWidth > parentWidth) {
+        $el.rdsRt.classList.add('animate');
+      } else {
+        $el.rdsRt.classList.remove('animate');
+      }
+    }
+
+    // 6. Rows layout (FM vs AM only controls)
+    if ($last.mode !== curMode) {
+      $last.mode = curMode;
+      const fmDisplay = curMode === 1 ? 'flex' : 'none';
+      const amDisplay = curMode === 2 ? 'flex' : 'none';
+      
+      $el.rows.fmIms.style.display = fmDisplay;
+      $el.rows.fmEq.style.display  = fmDisplay;
+      $el.rows.fmSm.style.display  = fmDisplay;
+      $el.rows.amAtt.style.display = amDisplay;
+      $el.rows.amCc.style.display  = amDisplay;
+      $el.rows.amAnb.style.display = amDisplay;
+      $el.rows.amAsm.style.display = amDisplay;
+    }
+
+    // 7. DSP Toggles
+    function updateToggle(prop, targetEl, val) {
+      if (now - lastInteractions[prop] >= 1500) {
+        if ($last[prop] !== val) {
+          $last[prop] = val;
+          targetEl.checked = val;
+        }
+      }
+    }
+
+    updateToggle('hc', $el.hcToggle, data.hc === 1);
+    updateToggle('lc', $el.lcToggle, data.lc === 1);
+    updateToggle('nb', $el.nbToggle, data.nb === 1);
+    updateToggle('kl', $el.lockToggle, data.kl === 1);
+
+    if (curMode === 1) {
+      updateToggle('ims', $el.imsToggle, data.ims === 1);
+      updateToggle('eq', $el.eqToggle, data.eq === 1);
+      updateToggle('sm', $el.fmSmToggle, data.sm === 1);
+    } else {
+      updateToggle('att', $el.attToggle, data.att > 0);
+      updateToggle('cc', $el.ccToggle, data.cc === 1);
+      updateToggle('anb', $el.anbToggle, data.anb === 1);
+      updateToggle('asm', $el.asmToggle, data.asm === 1);
+    }
+  }
+
+  // Build the legacy db-format text once per RSSI change.
+  function fmtRssi(r) { return `${r.toFixed(1)} dBuV`; }
+  function fmtVol(v)  { return `${v > 0 ? '+' : ''}${v} dB`; }
+
+  // Setup presets UI. Cheap rebuild: only builds on first call AND on
+  // mode flip. Previously rebuilt the grid on every telemetry packet.
+  const presetsGridEl = document.getElementById('presetsGrid');
+  let presetsBuiltFor = 0; // 0 = not built, 1 = FM, 2 = AM
   function loadPresets() {
-    const list = curMode === 1 ? presetsFM : presetsAM;
-    const grid = document.getElementById('presetsGrid');
-    grid.innerHTML = '';
+    const want = curMode === 1 ? 1 : 2;
+    if (want === presetsBuiltFor) return; // nothing to do
+    presetsBuiltFor = want;
+
+    const list = want === 1 ? presetsFM : presetsAM;
+    // Build once using a DocumentFragment so the grid only reflows once.
+    const frag = document.createDocumentFragment();
     list.forEach(p => {
       const btn = document.createElement('button');
       btn.className = 'preset-btn';
-      btn.innerText = p.name;
-      btn.onclick = () => {
-        if (curMode === 1) {
-          sendCmd(`F${p.f}`);
-        } else {
-          sendCmd(`A${p.f}`);
-        }
-      };
-      grid.appendChild(btn);
+      btn.textContent = p.name;     // textContent is faster than innerText
+      btn.dataset.f = p.f;
+      btn.addEventListener('click', onPresetClick);
+      frag.appendChild(btn);
     });
+    presetsGridEl.replaceChildren(frag);
+  }
+
+  function onPresetClick(e) {
+    const f = e.currentTarget.dataset.f;
+    if (curMode === 1) sendCmd(`F${f}`);
+    else               sendCmd(`A${f}`);
   }
 
   // BLE Connect sequence
@@ -869,111 +1127,11 @@
 
   // Process a complete telemetry JSON packet
   function handleTelemetry(data) {
-      
-      // Update UI variables
-      curFreq = data.f;
-      curMode = data.m;
-      
-      const now = Date.now();
-
-      // Render Frequency
-      const displayVal = curMode === 1 ? (data.f / 100).toFixed(2) : data.f;
-      document.getElementById('freqDisplay').firstElementChild.innerText = displayVal;
-      document.getElementById('unitDisplay').innerText = curMode === 1 ? 'MHz' : 'kHz';
-      
-      // Render labels
-      let bandText = "FM BAND";
-      let activeBandIdx = 1;
-      if (curMode === 2) {
-        if (data.f <= 300) { bandText = "LW BAND"; activeBandIdx = 2; }
-        else if (data.f <= 2000) { bandText = "MW BAND"; activeBandIdx = 3; }
-        else { bandText = "SW BAND"; activeBandIdx = 4; }
-      }
-      document.getElementById('bandName').innerText = bandText;
-
-      // Highlight correct Band button
-      for (let i = 1; i <= 4; i++) {
-        const btn = document.getElementById(`btnBand${i}`);
-        if (i === activeBandIdx) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
-        }
-      }
-
-      // Dynamic theme color selection
-      const root = document.documentElement;
-      if (curMode === 1) {
-        root.style.setProperty('--accent-color', 'var(--accent-fm)');
-      } else {
-        root.style.setProperty('--accent-color', 'var(--accent-am)');
-      }
-
-      // Vol slider (debounced)
-      if (now - lastInteractions.vol > 1500) {
-        curVol = data.v;
-        document.getElementById('volSlider').value = curVol;
-        document.getElementById('volDbLabel').innerText = `${curVol > 0 ? '+' : ''}${curVol} dB`;
-      }
-
-      // RSSI meter
-      document.getElementById('dbDisplay').innerText = `${data.r.toFixed(1)} dBuV`;
-      const minDb = -10;
-      const maxDb = 65;
-      const pct = Math.max(0, Math.min(100, ((data.r - minDb) / (maxDb - minDb)) * 100));
-      document.getElementById('meterFill').style.width = `${pct}%`;
-
-      // Stereo Lock
-      const stereoBadge = document.getElementById('stereoBadge');
-      if (curMode === 1 && data.s === 1) {
-        stereoBadge.classList.add('active');
-        stereoBadge.innerText = "STEREO";
-      } else {
-        stereoBadge.classList.remove('active');
-        stereoBadge.innerText = "MONO";
-      }
-
-      // RDS text
-      document.getElementById('rdsPs').innerText = data.p;
-      document.getElementById('rdsRt').innerText = data.t;
-
-      // 2-Way Synchronization with Telemetry Lockout to eliminate echoing/flickering
-      if (now - lastInteractions.hc > 1500) document.getElementById('hcToggle').checked = (data.hc === 1);
-      if (now - lastInteractions.lc > 1500) document.getElementById('lcToggle').checked = (data.lc === 1);
-      if (now - lastInteractions.nb > 1500) document.getElementById('nbToggle').checked = (data.nb === 1);
-      if (now - lastInteractions.kl > 1500) document.getElementById('lockToggle').checked = (data.kl === 1);
-      
-      if (curMode === 1) {
-        // Show FM options, Hide AM options
-        document.getElementById('fmOnlyIms').style.display = 'flex';
-        document.getElementById('fmOnlyEq').style.display = 'flex';
-        document.getElementById('fmOnlySm').style.display = 'flex';
-        document.getElementById('amOnlyAtt').style.display = 'none';
-        document.getElementById('amOnlyCc').style.display = 'none';
-        document.getElementById('amOnlyAnb').style.display = 'none';
-        document.getElementById('amOnlyAsm').style.display = 'none';
-        
-        if (now - lastInteractions.ims > 1500) document.getElementById('imsToggle').checked = (data.ims === 1);
-        if (now - lastInteractions.eq > 1500)  document.getElementById('eqToggle').checked = (data.eq === 1);
-        if (now - lastInteractions.sm > 1500)  document.getElementById('fmSmToggle').checked = (data.sm === 1);
-      } else {
-        // Hide FM options, Show AM options
-        document.getElementById('fmOnlyIms').style.display = 'none';
-        document.getElementById('fmOnlyEq').style.display = 'none';
-        document.getElementById('fmOnlySm').style.display = 'none';
-        document.getElementById('amOnlyAtt').style.display = 'flex';
-        document.getElementById('amOnlyCc').style.display = 'flex';
-        document.getElementById('amOnlyAnb').style.display = 'flex';
-        document.getElementById('amOnlyAsm').style.display = 'flex';
-        
-        if (now - lastInteractions.att > 1500) document.getElementById('attToggle').checked = (data.att > 0);
-        if (now - lastInteractions.cc > 1500)  document.getElementById('ccToggle').checked = (data.cc === 1);
-        if (now - lastInteractions.anb > 1500) document.getElementById('anbToggle').checked = (data.anb === 1);
-        if (now - lastInteractions.asm > 1500) document.getElementById('asmToggle').checked = (data.asm === 1);
-      }
-
-      // Load presets if band mode changed
-      loadPresets();
+    pendingTelemetry = data;
+    if (!rafScheduled) {
+      rafScheduled = true;
+      requestAnimationFrame(flushDirty);
+    }
   }
 
   // Send packet commands via BLE
@@ -987,12 +1145,43 @@
     }
   }
 
-  // Tactile Jog-Wheel Rotation Logic
+  // Tactile Jog-Wheel Rotation Logic (Rate-Limited BLE writes & Responsive UI)
   const dial = document.getElementById('dialOuter');
   const notch = document.getElementById('dialNotch');
   let isDragging = false;
   let lastAngle = 0;
   let accumAngle = 0;
+  let targetFreq = null;
+  let tuningTimeout = null;
+  let pendingTuningFreq = null;
+
+  function sendTuningThrottled(freq) {
+    pendingTuningFreq = freq;
+    if (!tuningTimeout) {
+      tuningTimeout = setTimeout(() => {
+        if (pendingTuningFreq !== null) {
+          sendCmd(curMode === 1 ? `F${pendingTuningFreq}` : `A${pendingTuningFreq}`);
+          lastInteractions.freq = Date.now();
+        }
+        tuningTimeout = null;
+      }, 100); // Max 10 tuning commands/second during drag
+    }
+  }
+
+  function stopDragging() {
+    if (!isDragging) return;
+    isDragging = false;
+    if (tuningTimeout) {
+      clearTimeout(tuningTimeout);
+      tuningTimeout = null;
+    }
+    if (targetFreq !== null) {
+      sendCmd(curMode === 1 ? `F${targetFreq}` : `A${targetFreq}`);
+      lastInteractions.freq = Date.now();
+    }
+    targetFreq = null;
+    pendingTuningFreq = null;
+  }
 
   dial.addEventListener('pointerdown', e => {
     isDragging = true;
@@ -1002,10 +1191,11 @@
     const cy = rect.top + rect.height / 2;
     lastAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
     accumAngle = 0;
+    targetFreq = curFreq; // Initialize local target frequency
   });
 
   dial.addEventListener('pointermove', e => {
-    if (!isDragging) return;
+    if (!isDragging || targetFreq === null) return;
     const rect = dial.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
@@ -1028,21 +1218,34 @@
       if (navigator.vibrate) navigator.vibrate(12);
 
       // Determine step direction
-      const stepVal = curMode === 1 ? 10 : (curFreq > 2000 ? 5 : 9); // FM: 100k, SW: 5k, MW/LW: 9k
-      if (steps > 0) {
-        sendCmd(curMode === 1 ? `F${curFreq + stepVal}` : `A${curFreq + stepVal}`);
+      const stepVal = curMode === 1 ? 10 : (targetFreq > 2000 ? 5 : 9); // FM: 100k, SW: 5k, MW/LW: 9k
+      targetFreq += steps * stepVal;
+
+      // Restrict local tuning to valid boundaries
+      if (curMode === 1) {
+        if (targetFreq < 6400) targetFreq = 6400;
+        if (targetFreq > 10800) targetFreq = 10800;
       } else {
-        sendCmd(curMode === 1 ? `F${curFreq - stepVal}` : `A${curFreq - stepVal}`);
+        if (targetFreq < 150) targetFreq = 150;
+        if (targetFreq > 30000) targetFreq = 30000;
       }
 
-      // Rotate visual notch
+      // Lockout incoming telemetry and update display instantly
+      lastInteractions.freq = Date.now();
+      const displayVal = curMode === 1 ? (targetFreq / 100).toFixed(2) : targetFreq;
+      $el.freqVal.textContent = displayVal;
+
+      // Send throttled command to hardware
+      sendTuningThrottled(targetFreq);
+
+      // Rotate visual notch instantly
       const currentRotation = parseFloat(notch.style.transform.replace(/[^0-9\-.]/g, '')) || 0;
       notch.style.transform = `rotate(${currentRotation + (steps * 12)}deg)`;
     }
   });
 
-  dial.addEventListener('pointerup', () => { isDragging = false; });
-  dial.addEventListener('pointercancel', () => { isDragging = false; });
+  dial.addEventListener('pointerup', stopDragging);
+  dial.addEventListener('pointercancel', stopDragging);
 
   // Volume slider event (Throttled & Absolute)
   const volSlider = document.getElementById('volSlider');
